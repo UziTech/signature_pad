@@ -6,10 +6,35 @@ import './utils/pointer-event-polyfill';
 let canvas: HTMLCanvasElement;
 const dpr = window.devicePixelRatio;
 
-function changeDevicePixelratio(ratio: number) {
+function changeDevicePixelRatio(ratio: number) {
   window.devicePixelRatio = ratio;
   canvas.setAttribute('width', (canvas.width * ratio).toString());
   canvas.setAttribute('height', (canvas.height * ratio).toString());
+}
+
+type ImageConstructor = new (
+  width?: number | undefined,
+  height?: number | undefined,
+) => HTMLImageElement;
+
+function mockImage() {
+  const imgs: MockImage[] = [];
+
+  class MockImage extends ImageBitmap {
+    onload: () => void;
+    onerror: (error: unknown) => void;
+
+    constructor() {
+      super();
+      this.onload = jest.fn();
+      this.onerror = jest.fn();
+      imgs.push(this);
+    }
+  }
+
+  global.Image = MockImage as unknown as ImageConstructor;
+
+  return imgs;
 }
 
 beforeEach(() => {
@@ -119,16 +144,42 @@ describe('#toData', () => {
   });
 });
 
-// describe('#fromDataURL', () => {});
+describe('#fromDataURL', () => {
+  it('image.onload', async () => {
+    const pad = new SignaturePad(canvas);
+    pad.fromData(face);
+
+    const images = mockImage();
+    const fromDataUrlPromise = pad.fromDataURL(pad.toDataURL());
+
+    expect(images).toHaveLength(1);
+
+    images[0].onload();
+
+    await expect(fromDataUrlPromise).resolves.toBeUndefined();
+  });
+
+  it('image.onerror', async () => {
+    const pad = new SignaturePad(canvas);
+    pad.fromData(face);
+
+    const images = mockImage();
+    const fromDataUrlPromise = pad.fromDataURL(pad.toDataURL());
+
+    expect(images).toHaveLength(1);
+
+    images[0].onerror('error');
+
+    await expect(fromDataUrlPromise).rejects.toBe('error');
+  });
+});
 
 describe('#toDataURL', () => {
   it('returns PNG image by default', () => {
     const pad = new SignaturePad(canvas);
     pad.fromData(face);
 
-    expect(pad.toDataURL()).toEqual(
-      expect.stringMatching('data:image/png'),
-    );
+    expect(pad.toDataURL()).toEqual(expect.stringMatching('data:image/png'));
   });
 
   it('returns PNG image in data URL format', () => {
@@ -152,7 +203,7 @@ describe('#toDataURL', () => {
   });
 
   it('returns SVG image in data URL format with high DPI', () => {
-    changeDevicePixelratio(2);
+    changeDevicePixelRatio(2);
     const pad = new SignaturePad(canvas);
     pad.fromData(face);
 
@@ -188,7 +239,7 @@ describe('#toSVG', () => {
   });
 
   it('returns SVG image with high DPI', () => {
-    changeDevicePixelratio(2);
+    changeDevicePixelRatio(2);
     const pad = new SignaturePad(canvas);
     pad.fromData(face);
 
@@ -211,6 +262,7 @@ describe('user interactions', () => {
         clientX: 50,
         clientY: 30,
         pressure: 1,
+        buttons: 1,
       }),
     );
     canvas.dispatchEvent(
@@ -218,6 +270,7 @@ describe('user interactions', () => {
         clientX: 240,
         clientY: 30,
         pressure: 1,
+        buttons: 1,
       }),
     );
     canvas.dispatchEvent(
@@ -225,6 +278,7 @@ describe('user interactions', () => {
         clientX: 150,
         clientY: 120,
         pressure: 1,
+        buttons: 1,
       }),
     );
     expect(pad.toDataURL('image/svg+xml')).toMatchSnapshot();
@@ -239,6 +293,7 @@ describe('user interactions', () => {
         clientX: 50,
         clientY: 30,
         pressure: 1,
+        buttons: 1,
       }),
     );
     canvas.dispatchEvent(
@@ -246,6 +301,7 @@ describe('user interactions', () => {
         clientX: 240,
         clientY: 30,
         pressure: 1,
+        buttons: 1,
       }),
     );
     document.dispatchEvent(
@@ -253,6 +309,7 @@ describe('user interactions', () => {
         clientX: 150,
         clientY: 120,
         pressure: 1,
+        buttons: 1,
       }),
     );
     expect(endStroke).toHaveBeenCalled();
@@ -277,6 +334,7 @@ describe('user interactions', () => {
         clientX: 50,
         clientY: 30,
         pressure: 1,
+        buttons: 1,
       }),
     );
     externalCanvas.dispatchEvent(
@@ -284,6 +342,7 @@ describe('user interactions', () => {
         clientX: 240,
         clientY: 30,
         pressure: 1,
+        buttons: 1,
       }),
     );
     // check that original document is not affected
@@ -292,6 +351,7 @@ describe('user interactions', () => {
         clientX: 150,
         clientY: 120,
         pressure: 1,
+        buttons: 1,
       }),
     );
     expect(endStroke).not.toHaveBeenCalled();
@@ -301,6 +361,7 @@ describe('user interactions', () => {
         clientX: 150,
         clientY: 120,
         pressure: 1,
+        buttons: 1,
       }),
     );
     expect(endStroke).toHaveBeenCalled();
@@ -313,7 +374,13 @@ describe(`touch events.`, () => {
   function createTouchEvents(cancelable: boolean) {
     const touchStartEvent = new TouchEvent('touchstart', {
       cancelable,
-      targetTouches: [{} as Touch],
+      targetTouches: [
+        {
+          clientX: 50,
+          clientY: 30,
+          force: 1,
+        } as Touch,
+      ],
       changedTouches: [
         {
           clientX: 50,
@@ -384,6 +451,58 @@ describe(`touch events.`, () => {
   });
 });
 
+describe(`mouse events.`, () => {
+  let signpad: SignaturePad;
+
+  function createMouseEvents(cancelable: boolean) {
+    const mouseDownEvent = new MouseEvent('mousedown', {
+      cancelable,
+      clientX: 50,
+      clientY: 30,
+      buttons: 1,
+    });
+    const mouseMoveEvent = new MouseEvent('mousemove', {
+      cancelable,
+      clientX: 55,
+      clientY: 35,
+      buttons: 1,
+    });
+    const mouseUpEvent = new MouseEvent('mouseup', {
+      cancelable,
+      clientX: 55,
+      clientY: 35,
+      buttons: 1,
+    });
+    jest.spyOn(mouseDownEvent, 'preventDefault');
+    jest.spyOn(mouseMoveEvent, 'preventDefault');
+    jest.spyOn(mouseUpEvent, 'preventDefault');
+
+    return {
+      mouseDownEvent,
+      mouseMoveEvent,
+      mouseUpEvent,
+    };
+  }
+
+  beforeEach(() => {
+    signpad = new SignaturePad(canvas);
+    signpad.off();
+    signpad['_handleMouseEvents']();
+  });
+
+  it('the event should not be prevented.', () => {
+    const { mouseDownEvent, mouseMoveEvent, mouseUpEvent } =
+      createMouseEvents(true);
+    canvas.dispatchEvent(mouseDownEvent);
+    canvas.dispatchEvent(mouseMoveEvent);
+    canvas.ownerDocument.dispatchEvent(mouseUpEvent);
+
+    expect(mouseDownEvent.preventDefault).not.toHaveBeenCalled();
+    expect(mouseMoveEvent.preventDefault).not.toHaveBeenCalled();
+    expect(mouseUpEvent.preventDefault).not.toHaveBeenCalled();
+  });
+});
+
 describe('Signature events.', () => {
   let signpad: SignaturePad;
   let eventDispatched: Event | undefined;
@@ -432,6 +551,7 @@ describe('Signature events.', () => {
           clientX: 50,
           clientY: 30,
           pressure: 1,
+          buttons: 1,
           bubbles: true,
         };
         let pointerEvent;
@@ -465,6 +585,7 @@ describe('Signature events.', () => {
         clientX: 50,
         clientY: 30,
         pressure: 1,
+        buttons: 1,
       };
       const pointerEvent = new PointerEvent('pointerdown', eventInitObj);
       canvas.dispatchEvent(pointerEvent);

@@ -1,3 +1,10 @@
+## [5.1.4](https://github.com/szimek/signature_pad/compare/v5.1.3...v5.1.4) (2026-07-31)
+
+
+### Bug Fixes
+
+* render two-point point groups ([#890](https://github.com/szimek/signature_pad/issues/890)) ([b787bee](https://github.com/szimek/signature_pad/commit/b787beec5b6c1484cc1657d4370339b5f426aedd))
+
 ## [5.1.3](https://github.com/szimek/signature_pad/compare/v5.1.2...v5.1.3) (2025-12-03)
 
 
